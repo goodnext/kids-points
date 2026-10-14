@@ -8,10 +8,29 @@ const NOTES: Record<SoundKind, number[]> = {
 
 let ctx: AudioContext | null = null
 
+function audio(): AudioContext {
+  ctx ??= new AudioContext()
+  // iPad では止まった状態で作られたり、バックグラウンドから戻ると interrupted になったりする
+  if (ctx.state !== 'running') void ctx.resume().catch(() => {})
+  return ctx
+}
+
+// iPad はタップの中で作って resume した AudioContext でないと音が出ないので、タップのたびに起こす
+export function installAudioUnlock(): void {
+  const unlock = () => {
+    try {
+      audio()
+    } catch {
+      // 音が出せない環境では何もしない
+    }
+  }
+  document.addEventListener('pointerdown', unlock, { capture: true })
+}
+
 export function playSound(kind: SoundKind, enabled: boolean): void {
   if (!enabled) return
   try {
-    const ac = (ctx ??= new AudioContext())
+    const ac = audio()
     const start = ac.currentTime
     NOTES[kind].forEach((freq, i) => {
       const t = start + i * 0.12
