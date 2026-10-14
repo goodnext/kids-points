@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { exportBackup, importBackup, parseBackup, type BackupFile } from '../../../storage/backup'
 import { useStore } from '../../store'
 
@@ -6,6 +6,23 @@ export function BackupSettings() {
   const { repo, snap, reload } = useStore()
   const [pending, setPending] = useState<BackupFile | null>(null)
   const [message, setMessage] = useState('')
+  const busy = useRef(false)
+
+  const replace = async (file: BackupFile) => {
+    if (busy.current) return
+    busy.current = true
+    try {
+      await importBackup(repo, file)
+      await reload()
+      setMessage('読み込みました')
+    } catch {
+      // 読み込みは1つのトランザクションなので、失敗したら何も変わっていない
+      setMessage('読み込めませんでした。いまのデータはそのままです')
+    } finally {
+      setPending(null)
+      busy.current = false
+    }
+  }
 
   const download = async () => {
     const text = await exportBackup(repo)
@@ -66,12 +83,7 @@ export function BackupSettings() {
             </button>
             <button
               className="btn danger"
-              onClick={async () => {
-                await importBackup(repo, pending)
-                setPending(null)
-                await reload()
-                setMessage('読み込みました')
-              }}
+              onClick={() => void replace(pending)}
             >
               置き換える
             </button>
