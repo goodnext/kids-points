@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { describeTx } from '../../domain/describeTx'
 import type { UndoCheck, UndoFailReason } from '../../domain/undo'
 import { OpFailed } from '../../storage/repo'
@@ -15,6 +15,7 @@ export function UndoTab() {
   const { repo, snap, reload } = useStore()
   const [check, setCheck] = useState<UndoCheck | null>(null)
   const [message, setMessage] = useState('')
+  const busy = useRef(false)
   const name = (id: string) => snap.children.find((c) => c.id === id)?.name ?? ''
 
   useEffect(() => {
@@ -27,13 +28,18 @@ export function UndoTab() {
     }
   }, [repo, snap])
 
-  const undo = async () => {
+  const undo = async (expectedId: string) => {
+    if (busy.current) return
+    busy.current = true
     try {
-      const t = await repo.undoLast()
+      const t = await repo.undoLast(expectedId)
       setMessage(`「${describeTx(t, name(t.childId))}」を とりけしました`)
       await reload()
     } catch (e) {
       setMessage(e instanceof OpFailed ? (REASON[e.reason as UndoFailReason] ?? 'できませんでした') : 'できませんでした')
+      await reload()
+    } finally {
+      busy.current = false
     }
   }
 
@@ -44,7 +50,7 @@ export function UndoTab() {
         <>
           <p>さいごの操作：</p>
           <p className="amount">{describeTx(check.tx, name(check.tx.childId))}</p>
-          <button className="btn danger" onClick={() => void undo()}>
+          <button className="btn danger" onClick={() => void undo(check.tx.id)}>
             これを とりけす
           </button>
         </>

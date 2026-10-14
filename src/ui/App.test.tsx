@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it } from 'vitest'
 import { newId } from '../storage/ids'
@@ -85,4 +85,21 @@ it('つかう で残高より多いと押せず、正しい値なら減る', asy
   await user.click(screen.getByRole('button', { name: 'つかう を きろく' }))
   expect(await screen.findByText('10pt つかいました')).toBeInTheDocument()
   expect(screen.getByText(/おさいふ：20pt/)).toBeInTheDocument()
+})
+
+it('とりけし を連打しても1件だけ取り消す', async () => {
+  const user = userEvent.setup()
+  await setUp(user)
+  await user.click(await screen.findByRole('button', { name: 'おやのメニュー' }))
+  await typePin(user, '1234')
+  await user.click(await screen.findByRole('button', { name: /おてつだい/ }))
+  await user.click(await screen.findByRole('button', { name: 'おやのメニュー' }))
+  await user.click(await screen.findByRole('button', { name: 'とりけし' }))
+  const btn = await screen.findByRole('button', { name: 'これを とりけす' })
+  expect(screen.getByText('あおい：おてつだい スタンプ 1pt')).toBeInTheDocument()
+  fireEvent.click(btn)
+  fireEvent.click(btn)
+  expect(await screen.findByText('「あおい：おてつだい スタンプ 1pt」を とりけしました')).toBeInTheDocument()
+  // 2回目のタップで、見せていない開始残高まで取り消されていないこと
+  expect(await screen.findByText('あおい：はじめのポイント 30pt')).toBeInTheDocument()
 })

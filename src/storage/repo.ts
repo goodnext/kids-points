@@ -31,10 +31,13 @@ export type NewTx = {
   icon?: string
 }
 
-export class OpFailed extends Error {
-  readonly reason: OpError | UndoFailReason
+// stale: 画面で見せた記録と、いま最新の記録が違う
+export type OpFailReason = OpError | UndoFailReason | 'stale' | 'duplicate_opening'
 
-  constructor(reason: OpError | UndoFailReason) {
+export class OpFailed extends Error {
+  readonly reason: OpFailReason
+
+  constructor(reason: OpFailReason) {
     super(reason)
     this.name = 'OpFailed'
     this.reason = reason
@@ -131,11 +134,13 @@ export class Repo {
     return checkUndo(await this.db.transactions.toArray(), this.clock())
   }
 
-  async undoLast(): Promise<Transaction> {
+  // expectedId を渡すと、最新の記録がそれと違うときは取り消さない（連打や古い画面からの取り消しを防ぐ）
+  async undoLast(expectedId?: string): Promise<Transaction> {
     await this.settle()
     return this.db.transaction('rw', [this.db.transactions], async () => {
       const result = checkUndo(await this.db.transactions.toArray(), this.clock())
       if (!result.ok) throw new OpFailed(result.reason)
+      if (expectedId !== undefined && result.tx.id !== expectedId) throw new OpFailed('stale')
       await this.db.transactions.update(result.tx.id, { voidedAt: this.clock().toISOString() })
       return result.tx
     })

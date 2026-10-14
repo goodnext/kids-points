@@ -85,4 +85,14 @@ describe('Repo', () => {
     expect(snap.children.map((c) => c.id)).toEqual(['a', 'b'])
     expect(snap.menuItems).toEqual([])
   })
+
+  it('undoLast(expectedId) は、最新の記録が見せたものと違えば取り消さない', async () => {
+    const { repo } = makeRepo('2026-11-05T09:00')
+    const opening = await repo.addTx({ childId: 'c1', type: 'opening', points: 10 })
+    const stamp = await repo.addTx({ childId: 'c1', type: 'stamp', points: 1 })
+    await repo.undoLast(stamp.id)
+    await expect(repo.undoLast(stamp.id)).rejects.toMatchObject({ reason: 'stale' })
+    const txs = (await repo.snapshot()).transactions
+    expect(txs.find((t) => t.id === opening.id)?.voidedAt).toBeUndefined()
+  })
 })
