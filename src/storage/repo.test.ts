@@ -95,4 +95,14 @@ describe('Repo', () => {
     const txs = (await repo.snapshot()).transactions
     expect(txs.find((t) => t.id === opening.id)?.voidedAt).toBeUndefined()
   })
+
+  it('開始残高は1人1回まで。同時に2回保存しても2件目は拒否する', async () => {
+    const { repo } = makeRepo('2026-11-05T09:00')
+    const results = await Promise.allSettled([
+      repo.addTx({ childId: 'c1', type: 'opening', points: 30 }),
+      repo.addTx({ childId: 'c1', type: 'opening', points: 30 }),
+    ])
+    expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected'])
+    expect(balancesOf((await repo.snapshot()).transactions, 'c1').wallet).toBe(30)
+  })
 })

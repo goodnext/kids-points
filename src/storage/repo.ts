@@ -123,6 +123,9 @@ export class Repo {
       const txs = await this.db.transactions.where('childId').equals(input.childId).toArray()
       const error = validateOp(txs, input.childId, input.type, input.points)
       if (error) throw new OpFailed(error)
+      if (input.type === 'opening' && txs.some((t) => t.type === 'opening' && !t.voidedAt)) {
+        throw new OpFailed('duplicate_opening')
+      }
       const tx: Transaction = { id: newId(), at: this.clock().toISOString(), ...input }
       await this.db.transactions.add(tx)
       return tx
