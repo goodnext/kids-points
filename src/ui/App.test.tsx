@@ -50,3 +50,39 @@ it('なまえが空なら先に進めない', async () => {
   await user.click(await screen.findByRole('button', { name: 'つぎへ' }))
   expect(screen.getByText('なまえを入れてください')).toBeInTheDocument()
 })
+
+it('親がスタンプを押すと子どもの画面にスタンプが出て、とりけしでは誰の何かを表示する', async () => {
+  const user = userEvent.setup()
+  await setUp(user)
+  await user.click(await screen.findByRole('button', { name: 'おやのメニュー' }))
+  await typePin(user, '1234')
+  await user.click(await screen.findByRole('button', { name: /おてつだい/ }))
+
+  expect(await screen.findAllByLabelText('スタンプ')).toHaveLength(1)
+  expect(screen.getByText(/31pt/)).toBeInTheDocument()
+
+  // 5分以内なら PIN なしで親メニューに戻れる
+  await user.click(screen.getByRole('button', { name: 'おやのメニュー' }))
+  await user.click(await screen.findByRole('button', { name: 'とりけし' }))
+  expect(await screen.findByText('あおい：おてつだい スタンプ 1pt')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'これを とりけす' }))
+  expect(await screen.findByText('「あおい：おてつだい スタンプ 1pt」を とりけしました')).toBeInTheDocument()
+})
+
+it('つかう で残高より多いと押せず、正しい値なら減る', async () => {
+  const user = userEvent.setup()
+  await setUp(user)
+  await user.click(await screen.findByRole('button', { name: 'おやのメニュー' }))
+  await typePin(user, '1234')
+  await user.click(await screen.findByRole('button', { name: 'つかう' }))
+  const input = screen.getByLabelText('ポイント')
+  await user.type(input, '31')
+  expect(screen.getByRole('button', { name: 'つかう を きろく' })).toBeDisabled()
+  expect(screen.getByText('ポイントが たりません')).toBeInTheDocument()
+  await user.clear(input)
+  await user.type(input, '１０')
+  await user.type(screen.getByLabelText('つかいみち'), 'おかし')
+  await user.click(screen.getByRole('button', { name: 'つかう を きろく' }))
+  expect(await screen.findByText('10pt つかいました')).toBeInTheDocument()
+  expect(screen.getByText(/おさいふ：20pt/)).toBeInTheDocument()
+})
