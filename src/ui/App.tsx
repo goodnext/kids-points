@@ -15,8 +15,9 @@ type Screen =
   | { name: 'pinReset' }
   | { name: 'parent' }
 
-// 親メニューを閉じずに子どもの画面へ移ったとき、PIN を入れ直さずに戻れる時間
-const UNLOCK_MS = 5 * 60 * 1000
+// スタンプのあと子どもの画面へ移ったとき、親がすぐ戻るなら PIN を入れ直さなくてよい時間。
+// iPad を子どもに渡したあとで子どもが親メニューに入れないよう、短くしておく
+const UNLOCK_MS = 20 * 1000
 
 export function App() {
   const { snap, mode } = useStore()

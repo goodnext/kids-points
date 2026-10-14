@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { newId } from '../storage/ids'
 import { App } from './App'
 import { StoreProvider } from './store'
@@ -102,4 +102,18 @@ it('とりけし を連打しても1件だけ取り消す', async () => {
   expect(await screen.findByText('「あおい：おてつだい スタンプ 1pt」を とりけしました')).toBeInTheDocument()
   // 2回目のタップで、見せていない開始残高まで取り消されていないこと
   expect(await screen.findByText('あおい：はじめのポイント 30pt')).toBeInTheDocument()
+})
+
+it('スタンプのあと20秒たつと、鍵からは PIN なしで親メニューに入れない', async () => {
+  const user = userEvent.setup()
+  await setUp(user)
+  await user.click(await screen.findByRole('button', { name: 'おやのメニュー' }))
+  await typePin(user, '1234')
+  await user.click(await screen.findByRole('button', { name: /おてつだい/ }))
+  await screen.findAllByLabelText('スタンプ')
+  const later = Date.now() + 21_000
+  const spy = vi.spyOn(Date, 'now').mockReturnValue(later)
+  await user.click(screen.getByRole('button', { name: 'おやのメニュー' }))
+  expect(await screen.findByText('おやの PIN')).toBeInTheDocument()
+  spy.mockRestore()
 })
