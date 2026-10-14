@@ -59,4 +59,27 @@ describe('backup', () => {
     expect(needsBackupReminder({ ...DEFAULT_SETTINGS, lastBackupAt: new Date('2026-10-07T09:00').toISOString() }, base)).toBe(false)
     expect(needsBackupReminder({ ...DEFAULT_SETTINGS, lastBackupAt: new Date('2026-10-06T09:00').toISOString() }, base)).toBe(true)
   })
+
+  it('画面やルールが読む項目が壊れていれば BackupError（置き換え前に止める）', async () => {
+    const good = JSON.parse(await exportBackup(await seeded()))
+    const tx0 = good.transactions[0]
+    const bad = [
+      { ...good, menuItems: [{ ...good.menuItems[0], childIds: undefined }] },
+      { ...good, menuItems: [{ ...good.menuItems[0], childIds: ['nobody'] }] },
+      { ...good, settings: { ...good.settings, interestPercent: 'たくさん' } },
+      { ...good, settings: { ...good.settings, interestPercent: 101 } },
+      { ...good, children: [{ ...good.children[0], displayMode: 'baby' }] },
+      { ...good, children: [{ ...good.children[0], order: '1' }] },
+      { ...good, transactions: [tx0, { ...tx0, id: 'int', type: 'interest' }] },
+      { ...good, transactions: [{ ...tx0, voidedAt: 123 }] },
+      { ...good, transactions: [tx0, { ...tx0 }] },
+    ]
+    for (const data of bad) expect(() => parseBackup(JSON.stringify(data)), JSON.stringify(data).slice(0, 80)).toThrow(BackupError)
+  })
+
+  it('日時は ISO 形式にそろえて読み込む', async () => {
+    const good = JSON.parse(await exportBackup(await seeded()))
+    const data = { ...good, transactions: [{ ...good.transactions[0], at: '2026-11-05T09:00:00+09:00' }] }
+    expect(parseBackup(JSON.stringify(data)).transactions[0].at).toBe('2026-11-05T00:00:00.000Z')
+  })
 })

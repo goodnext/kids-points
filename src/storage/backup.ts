@@ -41,45 +41,121 @@ export async function exportBackup(repo: Repo): Promise<string> {
   return JSON.stringify(file, null, 2)
 }
 
+function isStr(v: unknown): v is string {
+  return typeof v === 'string'
+}
+
+function isNum(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v)
+}
+
+function isIsoDate(v: unknown): v is string {
+  return isStr(v) && !Number.isNaN(Date.parse(v))
+}
+
+function fail(message: string): never {
+  throw new BackupError(message)
+}
+
+// 画面とルールが読む項目をすべて確かめる。ここを通ったものだけが今のデータを置き換える
 export function parseBackup(text: string): BackupFile {
   let data: unknown
   try {
     data = JSON.parse(text)
   } catch {
-    throw new BackupError('JSON として読めないファイルです')
+    fail('JSON として読めないファイルです')
   }
-  if (!isObj(data) || data.app !== 'kids-points' || data.version !== 1) {
-    throw new BackupError('このアプリのバックアップではありません')
-  }
+  if (!isObj(data) || data.app !== 'kids-points' || data.version !== 1) fail('このアプリのバックアップではありません')
   const { children, menuItems, transactions, settings, exportedAt } = data
-  if (!Array.isArray(children) || !Array.isArray(menuItems) || !Array.isArray(transactions) || !isObj(settings) || typeof exportedAt !== 'string') {
-    throw new BackupError('ファイルの中身が足りません')
+  if (!Array.isArray(children) || !Array.isArray(menuItems) || !Array.isArray(transactions) || !isObj(settings) || !isIsoDate(exportedAt)) {
+    fail('ファイルの中身が足りません')
   }
+
   const childIds = new Set<string>()
   for (const c of children) {
-    if (!isObj(c) || typeof c.id !== 'string' || typeof c.name !== 'string') throw new BackupError('こどものデータが壊れています')
+    if (
+      !isObj(c) ||
+      !isStr(c.id) ||
+      !isStr(c.name) ||
+      !isStr(c.avatar) ||
+      !isStr(c.color) ||
+      (c.displayMode !== 'young' && c.displayMode !== 'older') ||
+      !isNum(c.order) ||
+      childIds.has(c.id)
+    ) {
+      fail('こどものデータが壊れています')
+    }
     childIds.add(c.id)
   }
+
+  const menuIds = new Set<string>()
   for (const m of menuItems) {
-    if (!isObj(m) || typeof m.id !== 'string' || typeof m.label !== 'string' || !isPositiveInt(m.points)) {
-      throw new BackupError('メニューのデータが壊れています')
+    if (
+      !isObj(m) ||
+      !isStr(m.id) ||
+      !isStr(m.label) ||
+      !isStr(m.icon) ||
+      !isPositiveInt(m.points) ||
+      !isNum(m.order) ||
+      !Array.isArray(m.childIds) ||
+      !m.childIds.every((id) => isStr(id) && childIds.has(id)) ||
+      menuIds.has(m.id)
+    ) {
+      fail('メニューのデータが壊れています')
     }
+    menuIds.add(m.id)
   }
+
+  const txIds = new Set<string>()
+  const normalized: Transaction[] = []
   for (const t of transactions) {
     if (
       !isObj(t) ||
-      typeof t.id !== 'string' ||
-      typeof t.childId !== 'string' ||
+      !isStr(t.id) ||
+      txIds.has(t.id) ||
+      !isStr(t.childId) ||
       !childIds.has(t.childId) ||
       !TX_TYPES.includes(t.type as TxType) ||
       !isPositiveInt(t.points) ||
-      typeof t.at !== 'string' ||
-      Number.isNaN(Date.parse(t.at))
+      !isIsoDate(t.at) ||
+      (t.type === 'interest' && !(isStr(t.period) && /^\d{4}-\d{2}$/.test(t.period))) ||
+      (t.voidedAt !== undefined && !isIsoDate(t.voidedAt)) ||
+      (t.memo !== undefined && !isStr(t.memo)) ||
+      (t.icon !== undefined && !isStr(t.icon))
     ) {
-      throw new BackupError('きろくのデータが壊れています')
+      fail('きろくのデータが壊れています')
     }
+    txIds.add(t.id)
+    // 並び順を文字列比較で決めているので、日時は toISOString の形にそろえる
+    normalized.push({
+      ...(t as unknown as Transaction),
+      at: new Date(t.at).toISOString(),
+      ...(t.voidedAt !== undefined ? { voidedAt: new Date(t.voidedAt as string).toISOString() } : {}),
+    })
   }
-  return data as unknown as BackupFile
+
+  const { interestPercent, soundOn, pinHash, lastBackupAt } = settings
+  if (
+    !isNum(interestPercent) ||
+    !Number.isInteger(interestPercent) ||
+    interestPercent < 0 ||
+    interestPercent > 100 ||
+    typeof soundOn !== 'boolean' ||
+    !(pinHash === null || isStr(pinHash)) ||
+    !(lastBackupAt === null || isIsoDate(lastBackupAt))
+  ) {
+    fail('せっていのデータが壊れています')
+  }
+
+  return {
+    app: 'kids-points',
+    version: 1,
+    exportedAt,
+    children: children as Child[],
+    menuItems: menuItems as MenuItem[],
+    transactions: normalized,
+    settings: { interestPercent, soundOn, pinHash, lastBackupAt } as Settings,
+  }
 }
 
 export async function importBackup(repo: Repo, file: BackupFile): Promise<void> {
