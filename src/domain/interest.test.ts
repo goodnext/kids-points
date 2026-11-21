@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { tx } from './fixtures'
-import { interestFor, monthOutcome, pendingInterest, projectedInterest } from './interest'
+import { interestFor, monthOutcome, nextInterestStep, pendingInterest, projectedInterest } from './interest'
 import type { Transaction } from './types'
 
 let idSeq = 0
@@ -110,18 +110,54 @@ describe('monthOutcome', () => {
   })
 })
 
-describe('projectedInterest', () => {
-  it('今のちょきんばこ残高から来月の利息見込みを出す', () => {
-    const txs = [tx('opening', 100, '2026-11-01T09:00'), tx('deposit', 60, '2026-11-10T09:00')]
-    expect(projectedInterest(txs, 'c1', 5, new Date('2026-11-15T09:00'))).toEqual({ savings: 60, points: 3, blocked: false })
+describe('nextInterestStep', () => {
+  it('利息が1pt増えるには、あと何pt ちょきんすればよいか', () => {
+    expect(nextInterestStep(33, 5)).toEqual({ more: 7, points: 2 })
+    expect(nextInterestStep(39, 5)).toEqual({ more: 1, points: 2 })
+    expect(nextInterestStep(40, 5)).toEqual({ more: 20, points: 3 })
+    expect(nextInterestStep(10, 5)).toEqual({ more: 30, points: 2 })
+    expect(nextInterestStep(50, 3)).toEqual({ more: 17, points: 2 })
+    expect(nextInterestStep(33, 100)).toEqual({ more: 1, points: 34 })
   })
 
-  it('今月引き出していたら blocked', () => {
+  it('ちょきんばこが0なら、1pt で利息がつく', () => {
+    expect(nextInterestStep(0, 5)).toEqual({ more: 1, points: 1 })
+  })
+
+  it('利率0なら増えないので null', () => {
+    expect(nextInterestStep(33, 0)).toBeNull()
+  })
+})
+
+describe('projectedInterest', () => {
+  it('今のちょきんばこ残高から、来月1日に入る利息の見込みと、次に増えるまでの pt を出す', () => {
+    const txs = [tx('opening', 100, '2026-11-01T09:00'), tx('deposit', 60, '2026-11-10T09:00')]
+    expect(projectedInterest(txs, 'c1', 5, new Date('2026-11-15T09:00'))).toEqual({
+      savings: 60,
+      points: 3,
+      blocked: false,
+      payAt: new Date('2026-12-01T00:00'),
+      next: { more: 20, points: 4 },
+    })
+  })
+
+  it('今月引き出していたら blocked で、次に増えるまでの pt は出さない', () => {
     const txs = [
       tx('opening', 100, '2026-11-01T09:00'),
       tx('deposit', 60, '2026-11-10T09:00'),
       tx('withdraw', 10, '2026-11-12T09:00'),
     ]
-    expect(projectedInterest(txs, 'c1', 5, new Date('2026-11-15T09:00'))).toEqual({ savings: 50, points: 0, blocked: true })
+    expect(projectedInterest(txs, 'c1', 5, new Date('2026-11-15T09:00'))).toEqual({
+      savings: 50,
+      points: 0,
+      blocked: true,
+      payAt: new Date('2026-12-01T00:00'),
+      next: null,
+    })
+  })
+
+  it('12月なら、入るのは翌年の1月1日', () => {
+    const txs = [tx('deposit', 20, '2026-12-10T09:00')]
+    expect(projectedInterest(txs, 'c1', 5, new Date('2026-12-20T09:00')).payAt).toEqual(new Date('2027-01-01T00:00'))
   })
 })

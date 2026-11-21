@@ -34,7 +34,7 @@ export function MoneyTab({ childId, type }: { childId: string; type: 'spend' | '
   return (
     <div>
       <p className="amount">
-        {type === 'spend' ? '👛 おさいふ' : '🐷 ちょきんばこ'}：{available}pt <small>（{(available * 10).toLocaleString('ja-JP')}円）</small>
+        {type === 'spend' ? '👛 つかえる ポイント' : '🐷 ふえる ちょきん'}：{available}pt <small>（{(available * 10).toLocaleString('ja-JP')}円）</small>
       </p>
       {type === 'withdraw' && <p className="note">ひきだすと、今月の利息はつきません。</p>}
       <div className="row">

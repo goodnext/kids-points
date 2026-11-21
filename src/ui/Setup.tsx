@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { parsePoints } from '../domain/validate'
-import { AVATARS, COLORS, DEFAULT_MENU } from '../storage/defaults'
+import { AVATARS, COLORS, defaultMenuItems } from '../storage/defaults'
 import { newId } from '../storage/ids'
 import { ChildForm, type ChildDraft } from './common/ChildForm'
 import { HomeScreenGuide } from './common/HomeScreenGuide'
@@ -40,8 +40,11 @@ export function Setup() {
     for (const [i, d] of drafts.entries()) {
       await repo.saveChild({ id: ids[i], name: d.name.trim(), avatar: d.avatar, color: d.color, displayMode: d.displayMode, order: i })
     }
-    for (const [i, m] of DEFAULT_MENU.entries()) {
-      await repo.saveMenuItem({ id: newId(), ...m, childIds: ids, order: i })
+    for (const item of defaultMenuItems(
+      drafts.map((d, i) => ({ id: ids[i], displayMode: d.displayMode })),
+      () => newId(),
+    )) {
+      await repo.saveMenuItem(item)
     }
     for (const [i, d] of drafts.entries()) {
       const points = parsePoints(d.opening)

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { DEMO_DB, KidsPointsDB, REAL_DB } from '../storage/db'
+import { replaceOldDefaultMenu } from '../storage/defaults'
 import { demoClock, getDemoOffset, seedDemo, setDemoOffset } from '../storage/demo'
 import { Repo, type Snapshot } from '../storage/repo'
 
@@ -45,11 +46,13 @@ function saveMode(mode: Mode): void {
 async function open(mode: Mode, names: DbNames): Promise<Loaded> {
   if (mode === 'real') {
     const repo = new Repo(new KidsPointsDB(names.real), () => new Date())
+    await replaceOldDefaultMenu(repo.db)
     await repo.settle()
     return { repo, snap: await repo.snapshot(), mode, demoOffset: 0 }
   }
   const db = new KidsPointsDB(names.demo)
   if ((await db.children.count()) === 0) await seedDemo(db, new Date())
+  await replaceOldDefaultMenu(db)
   const demoOffset = await getDemoOffset(db)
   const repo = new Repo(db, demoClock(demoOffset))
   await repo.settle()

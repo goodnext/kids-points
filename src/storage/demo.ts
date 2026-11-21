@@ -2,7 +2,7 @@ import { pendingInterest } from '../domain/interest'
 import { addMonths, monthKey, monthStart } from '../domain/month'
 import type { Child, MenuItem, MonthKey, Transaction, TxType } from '../domain/types'
 import type { KidsPointsDB } from './db'
-import { DEFAULT_MENU } from './defaults'
+import { defaultMenuItems } from './defaults'
 import { hashPin } from './pin'
 import { DEFAULT_SETTINGS } from './repo'
 
@@ -30,7 +30,9 @@ export async function seedDemo(db: KidsPointsDB, now: Date): Promise<void> {
     { id: aoi, name: 'あおい', avatar: '🦊', color: '#ff8a5c', displayMode: 'older', order: 0 },
     { id: sora, name: 'そら', avatar: '🐰', color: '#5cb8ff', displayMode: 'young', order: 1 },
   ]
-  const menuItems: MenuItem[] = DEFAULT_MENU.map((m, i) => ({ id: `demo-menu-${i}`, ...m, childIds: DEMO_CHILD_IDS, order: i }))
+  const menuItems: MenuItem[] = defaultMenuItems(children, (i) => `demo-menu-${i}`)
+  const aoiMenu = menuItems.filter((m) => m.childIds.includes(aoi))
+  const soraMenu = menuItems.filter((m) => m.childIds.includes(sora))
 
   const txs: Transaction[] = []
   let seq = 0
@@ -49,12 +51,12 @@ export async function seedDemo(db: KidsPointsDB, now: Date): Promise<void> {
   add(sora, 'opening', 10, day(months[0], 1))
   months.forEach((m, i) => {
     for (let d = 2; d <= 24; d += 3) {
-      const item = DEFAULT_MENU[d % DEFAULT_MENU.length]
-      add(aoi, 'stamp', item.points, day(m, d), { memo: item.label, icon: item.icon })
+      const item = aoiMenu[d % aoiMenu.length]
+      add(aoi, 'stamp', item.points, day(m, d), { memo: item.label, icon: item.icon, menuItemId: item.id })
     }
     for (let d = 3; d <= 19; d += 4) {
-      const item = DEFAULT_MENU[(d + 1) % DEFAULT_MENU.length]
-      add(sora, 'stamp', item.points, day(m, d), { memo: item.label, icon: item.icon })
+      const item = soraMenu[Math.floor(d / 4) % soraMenu.length]
+      add(sora, 'stamp', item.points, day(m, d), { memo: item.label, icon: item.icon, menuItemId: item.id })
     }
     add(aoi, 'deposit', 10, day(m, 25))
     add(sora, 'deposit', 5, day(m, 25))

@@ -52,13 +52,33 @@ export function monthOutcome(txs: Transaction[], childId: string, m: MonthKey): 
   return { kind: 'none' }
 }
 
-export function projectedInterest(
-  txs: Transaction[],
-  childId: string,
-  percent: number,
-  now: Date,
-): { savings: number; points: number; blocked: boolean } {
+// 利息が今より1pt増えるには、ちょきんばこに あと何pt 入れればよいか。利率0なら増えないので null
+export function nextInterestStep(savings: number, percent: number): { more: number; points: number } | null {
+  if (percent <= 0) return null
+  const base = Math.max(0, savings)
+  const target = interestFor(base, percent) + 1
+  // 1pt でも入っていれば最低1pt つくので、0pt からは 1pt 入れれば増える
+  const needed = target === 1 ? 1 : Math.max(base + 1, Math.ceil((target * 100) / percent))
+  return { more: needed - savings, points: interestFor(needed, percent) }
+}
+
+export type ProjectedInterest = {
+  savings: number
+  points: number
+  blocked: boolean
+  // 利息が記録される日（来月1日0時）
+  payAt: Date
+  next: { more: number; points: number } | null
+}
+
+export function projectedInterest(txs: Transaction[], childId: string, percent: number, now: Date): ProjectedInterest {
   const { savings } = balancesOf(txs, childId)
   const blocked = withdrewIn(txs, childId, monthKey(now))
-  return { savings, points: blocked ? 0 : interestFor(savings, percent), blocked }
+  return {
+    savings,
+    points: blocked ? 0 : interestFor(savings, percent),
+    blocked,
+    payAt: monthStart(nextMonth(monthKey(now))),
+    next: blocked ? null : nextInterestStep(savings, percent),
+  }
 }

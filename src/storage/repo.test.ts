@@ -105,4 +105,19 @@ describe('Repo', () => {
     expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected'])
     expect(balancesOf((await repo.snapshot()).transactions, 'c1').wallet).toBe(30)
   })
+
+  it('voidStamp は、最後でないスタンプも消せる。つかった分のスタンプは消さない', async () => {
+    const { repo } = makeRepo('2026-11-05T09:00')
+    const first = await repo.addTx({ childId: 'c1', type: 'stamp', points: 2 })
+    await repo.addTx({ childId: 'c1', type: 'stamp', points: 1 })
+    expect((await repo.voidStamp(first.id)).id).toBe(first.id)
+    const snap = await repo.snapshot()
+    expect(snap.transactions.find((t) => t.id === first.id)?.voidedAt).toBeDefined()
+    expect(balancesOf(snap.transactions, 'c1').wallet).toBe(1)
+
+    const last = snap.transactions.find((t) => t.id !== first.id)!
+    await repo.addTx({ childId: 'c1', type: 'spend', points: 1 })
+    await expect(repo.voidStamp(last.id)).rejects.toMatchObject({ reason: 'used' })
+    await expect(repo.voidStamp(first.id)).rejects.toMatchObject({ reason: 'none' })
+  })
 })

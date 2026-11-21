@@ -1,7 +1,7 @@
 import { byTime } from '../domain/balance'
 import { pendingInterest } from '../domain/interest'
 import type { Child, MenuItem, MonthKey, Settings, Transaction, TxType } from '../domain/types'
-import { checkUndo, type UndoCheck, type UndoFailReason } from '../domain/undo'
+import { checkUndo, checkVoidStamp, type UndoCheck, type UndoFailReason } from '../domain/undo'
 import { validateOp, type OpError } from '../domain/validate'
 import type { KidsPointsDB } from './db'
 import { newId } from './ids'
@@ -32,7 +32,8 @@ export type NewTx = {
 }
 
 // stale: 画面で見せた記録と、いま最新の記録が違う
-export type OpFailReason = OpError | UndoFailReason | 'stale' | 'duplicate_opening'
+// used: ちょきん・つかう で おさいふから出た分のスタンプなので消せない
+export type OpFailReason = OpError | UndoFailReason | 'stale' | 'duplicate_opening' | 'used'
 
 export class OpFailed extends Error {
   readonly reason: OpFailReason
@@ -145,6 +146,17 @@ export class Repo {
       if (!result.ok) throw new OpFailed(result.reason)
       if (expectedId !== undefined && result.tx.id !== expectedId) throw new OpFailed('stale')
       await this.db.transactions.update(result.tx.id, { voidedAt: this.clock().toISOString() })
+      return result.tx
+    })
+  }
+
+  // 指定したスタンプを消す。最後の記録でなくても、前の月のものでもよい
+  async voidStamp(txId: string): Promise<Transaction> {
+    await this.settle()
+    return this.db.transaction('rw', [this.db.transactions], async () => {
+      const result = checkVoidStamp(await this.db.transactions.toArray(), txId)
+      if (!result.ok) throw new OpFailed(result.reason)
+      await this.db.transactions.update(txId, { voidedAt: this.clock().toISOString() })
       return result.tx
     })
   }

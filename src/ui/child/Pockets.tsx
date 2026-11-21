@@ -1,19 +1,5 @@
-import type { Balances, DisplayMode } from '../../domain/types'
-
-const COIN_LIMIT = 20
-
-function Coins({ label, count }: { label: string; count: number }) {
-  const shown = Math.min(count, COIN_LIMIT)
-  return (
-    <div className="coins" aria-label={`${label} コイン ${count}こ`}>
-      {Array.from({ length: shown }, (_, i) => (
-        <span key={i}>🪙</span>
-      ))}
-      {count > COIN_LIMIT && <span className="more">+{count - COIN_LIMIT}</span>}
-      {count === 0 && <span className="empty">からっぽ</span>}
-    </div>
-  )
-}
+import type { ProjectedInterest } from '../../domain/interest'
+import type { Balances } from '../../domain/types'
 
 function Amount({ points }: { points: number }) {
   return (
@@ -23,42 +9,40 @@ function Amount({ points }: { points: number }) {
   )
 }
 
-export function Pockets({
-  balances,
-  mode,
-  projected,
-  percent,
-}: {
-  balances: Balances
-  mode: DisplayMode
-  projected: { savings: number; points: number; blocked: boolean }
-  percent: number
-}) {
+function InterestHint({ projected }: { projected: ProjectedInterest }) {
+  const day = `${projected.payAt.getMonth() + 1}/${projected.payAt.getDate()}`
+  if (projected.blocked) return <p className="hint">こんげつは ひきだしたので、{day} は ふえないよ</p>
+  if (projected.points > 0) {
+    return (
+      <>
+        <p className="interest-line">
+          {day} に +{projected.points}pt ふえるよ
+        </p>
+        {projected.next && (
+          <p className="hint">
+            あと {projected.next.more}pt ちょきんすると +{projected.next.points}pt に なるよ
+          </p>
+        )}
+      </>
+    )
+  }
+  // 利率が0のときは何も書かない
+  if (!projected.next) return null
+  return <p className="hint">ちょきんすると、つぎの 1にちに ふえるよ</p>
+}
+
+export function Pockets({ balances, projected }: { balances: Balances; projected: ProjectedInterest }) {
   return (
     <div className="pockets">
-      <div className="pocket">
-        <h2>👛 おさいふ</h2>
-        {mode === 'young' ? <Coins label="おさいふ" count={balances.wallet} /> : <Amount points={balances.wallet} />}
-      </div>
-      <div className="pocket">
-        <h2>🐷 ちょきんばこ</h2>
-        {mode === 'young' ? (
-          <Coins label="ちょきんばこ" count={balances.savings} />
-        ) : (
-          <>
-            <Amount points={balances.savings} />
-            {projected.blocked ? (
-              <p className="hint">こんげつは ひきだしたので、りそくは おやすみ</p>
-            ) : projected.points > 0 ? (
-              <p className="hint">
-                らいげつの りそく みこみ：{projected.savings}pt × {percent}% → {projected.points}pt
-              </p>
-            ) : (
-              <p className="hint">ちょきんすると、まいつき {percent}% ふえるよ</p>
-            )}
-          </>
-        )}
-      </div>
+      <section className="pocket" aria-label="つかえる ポイント">
+        <h2>👛 つかえる ポイント</h2>
+        <Amount points={balances.wallet} />
+      </section>
+      <section className="pocket" aria-label="ふえる ちょきん">
+        <h2>🐷 ふえる ちょきん</h2>
+        <Amount points={balances.savings} />
+        <InterestHint projected={projected} />
+      </section>
     </div>
   )
 }

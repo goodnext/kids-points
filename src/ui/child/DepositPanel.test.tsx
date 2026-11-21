@@ -16,7 +16,7 @@ describe('DepositPanel', () => {
     await act(async () => resolve())
   })
 
-  it('おさいふより多いボタンは押せない', () => {
+  it('つかえる ポイントより多いボタンは押せない', () => {
     render(<DepositPanel wallet={3} mode="young" onDeposit={vi.fn(async () => {})} />)
     expect(screen.getByRole('button', { name: '1こ' })).toBeEnabled()
     expect(screen.getByRole('button', { name: '5こ' })).toBeDisabled()

@@ -25,6 +25,10 @@ describe('demo', () => {
     expect(monthOutcome(snap.transactions, 'demo-aoi', '2026-10')).toMatchObject({ kind: 'interest' })
     expect(monthOutcome(snap.transactions, 'demo-sora', '2026-09')).toEqual({ kind: 'rest' })
     expect(snap.seen).toEqual({ 'demo-aoi': '2026-10', 'demo-sora': '2026-10' })
+    // テストのメニューと記録は、おおきい表示の あおい だけ
+    const soraMenu = snap.menuItems.filter((m) => m.childIds.includes('demo-sora')).map((m) => m.label)
+    expect(soraMenu).toEqual(['きゅうしょく ぜんぶ たべた', 'うわばき あらった'])
+    expect(snap.transactions.some((t) => t.childId === 'demo-sora' && t.memo?.startsWith('テスト'))).toBe(false)
     // 既に計算済みなので、同じ時刻で settle しても増えない
     expect(await repo.settle()).toHaveLength(0)
   })
